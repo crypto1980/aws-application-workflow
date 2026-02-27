@@ -11,8 +11,8 @@ resource "aws_launch_template" "asg_lt" {
   depends_on = [aws_key_pair.ubuntu]
   name_prefix   = "asg-lt-"
   image_id      = "ami-0345dd2cef523536e" # Amazon Ubuntu (us-west-2)
-  instance_type = "t2.medium"
-  key_name      = "ubuntu" # change this
+  instance_type = "t2.small" # 2.medium
+  key_name      = "ubuntu"   # change this
 
   vpc_security_group_ids = [aws_security_group.asg_sg.id]
 
