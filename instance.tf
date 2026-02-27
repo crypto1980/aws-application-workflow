@@ -18,32 +18,43 @@ resource "aws_launch_template" "asg_lt" {
 
   user_data = base64encode(<<EOF
 #!/bin/bash
-exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+set -e
+
+exec > /var/log/user-data.log 2>&1
 
 apt update -y
-apt install -y apache2 php php-mysql wget unzip curl nfs-common
+apt install -y apache2 php php-mysql wget unzip curl nfs-common netcat
+
 systemctl enable apache2
 systemctl start apache2
 
-# Download WordPress
+# Wait for RDS
+until nc -z ${aws_db_instance.wordpress.address} 3306; do
+  echo "Waiting for DB..."
+  sleep 5
+done
+
+# Install WordPress
 cd /var/www/html
-rm -rf *.html # Test
+rm -rf *
 wget https://wordpress.org/latest.zip
 unzip latest.zip
 mv wordpress/* .
 rm -rf wordpress latest.zip
 
-# Mount EFS for wp-content
+# Retry EFS mount
 mkdir -p /var/www/html/wp-content
-mount -t nfs4 -o nfsvers=4.1 ${aws_efs_file_system.wordpress.dns_name}:/ /var/www/html/wp-content
+until mount -t nfs4 -o nfsvers=4.1,_netdev ${aws_efs_file_system.wordpress.dns_name}:/ /var/www/html/wp-content; do
+  echo "Retrying EFS mount..."
+  sleep 5
+done
+
 echo "${aws_efs_file_system.wordpress.dns_name}:/ /var/www/html/wp-content nfs4 defaults,_netdev 0 0" >> /etc/fstab
 
-# Permissions
-chown -R www-data:www-data /var/www/html
-chmod -R 755 /var/www/html
+# Create health endpoint
+echo "OK" > /var/www/html/health.html
 
-# Configure wp-config.php only if missing
-if [ ! -f /var/www/html/wp-config.php ]; then
+# Configure wp-config
 cat > /var/www/html/wp-config.php <<EOC
 <?php
 define('DB_NAME', '${var.db_name}');
@@ -52,15 +63,15 @@ define('DB_PASSWORD', '${var.db_password}');
 define('DB_HOST', '${aws_db_instance.wordpress.address}');
 define('DB_CHARSET', 'utf8');
 define('DB_COLLATE', '');
-define('WP_HOME', 'https://${var.domain_name}');
-define('WP_SITEURL', 'https://${var.domain_name}');
 \$table_prefix = 'wp_';
 define('WP_DEBUG', false);
 if (!defined('ABSPATH'))
   define('ABSPATH', dirname(__FILE__) . '/');
 require_once(ABSPATH . 'wp-settings.php');
 EOC
-fi
+
+chown -R www-data:www-data /var/www/html
+chmod -R 755 /var/www/html
 
 systemctl restart apache2
 EOF
