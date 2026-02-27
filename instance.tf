@@ -88,7 +88,7 @@ resource "aws_autoscaling_group" "asg" {
   depends_on = [aws_launch_template.asg_lt]
   name             = "app-asg"
   min_size         = 1
-  max_size         = 7
+  max_size         = 5
   desired_capacity = 2
 
   vpc_zone_identifier = aws_subnet.public[*].id
