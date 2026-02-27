@@ -23,16 +23,10 @@ set -e
 exec > /var/log/user-data.log 2>&1
 
 apt update -y
-apt install -y apache2 php php-mysql wget unzip curl nfs-common netcat
+apt install -y apache2 php php-mysql wget unzip curl nfs-common
 
 systemctl enable apache2
 systemctl start apache2
-
-# Wait for RDS
-until nc -z ${aws_db_instance.wordpress.address} 3306; do
-  echo "Waiting for DB..."
-  sleep 5
-done
 
 # Install WordPress
 cd /var/www/html
