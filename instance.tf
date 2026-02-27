@@ -18,9 +18,6 @@ resource "aws_launch_template" "asg_lt" {
 
   user_data = base64encode(<<EOF
 #!/bin/bash
-set -e
-
-exec > /var/log/user-data.log 2>&1
 
 apt update -y
 apt install -y apache2 php php-mysql wget unzip curl nfs-common
